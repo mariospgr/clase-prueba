@@ -2,10 +2,273 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=<device-width>, initial-scale=1.0">
     <title>Document</title>
 </head>
 <body>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formulario de Contacto</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .contact-card {
+            border-left: 4px solid #0d6efd;
+            margin-bottom: 15px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        .btn-sm {
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">Formulario de Contacto</h1>
+        
+        <form id="contactForm">
+            <input type="hidden" id="contactId">
+            
+            <div class="mb-3">
+                <label for="name" class="form-label">Nombre</label>
+                <input type="text" class="form-control" id="name" required>
+                <div class="invalid-feedback">Por favor ingrese su nombre</div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" class="form-control" id="email" required>
+                <div class="invalid-feedback">Por favor ingrese un email válido</div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="phone" class="form-label">Teléfono</label>
+                <input type="tel" class="form-control" id="phone">
+            </div>
+            
+            <div class="mb-3">
+                <label for="country" class="form-label">País</label>
+                <select class="form-control" id="country" required>
+                    <option value="">Seleccione un país</option>
+                </select>
+                <div class="invalid-feedback">Por favor seleccione un país</div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="officialName" class="form-label">Nombre oficial del país</label>
+                <input type="text" class="form-control" id="officialName" readonly>
+            </div>
+            
+            <div class="mb-3">
+                <label for="comments" class="form-label">Comentarios</label>
+                <textarea class="form-control" id="comments" rows="3"></textarea>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <button type="button" id="cancelBtn" class="btn btn-secondary" style="display: none;">Cancelar</button>
+                <button type="submit" id="submitBtn" class="btn btn-primary">Guardar</button>
+            </div>
+        </form>
+        
+        <h2 class="mt-5 mb-3">Contactos Registrados</h2>
+        <div id="contactsList"></div>
+    </div>
 
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Cargar países desde la API
+            $.get('https://restcountries.com/v3.1/lang/spanish', function(data) {
+                const countries = data.map(country => country.name.common).sort();
+                countries.forEach(country => {
+                    $('#country').append(`<option value="${country}">${country}</option>`);
+                });
+            });
+            
+            // Cargar contactos existentes
+            loadContacts();
+            
+            // Manejar cambio de país
+            $('#country').change(function() {
+                const selectedCountry = $(this).val();
+                if (selectedCountry) {
+                    $.get(`https://restcountries.com/v3.1/name/${selectedCountry}?fullText=true`, function(data) {
+                        $('#officialName').val(data[0].name.official);
+                    }).fail(function() {
+                        $('#officialName').val('No disponible');
+                    });
+                } else {
+                    $('#officialName').val('');
+                }
+            });
+            
+            // Manejar envío del formulario
+            $('#contactForm').submit(function(e) {
+                e.preventDefault();
+                
+                if (validateForm()) {
+                    const contact = {
+                        id: $('#contactId').val() || Date.now().toString(),
+                        name: $('#name').val(),
+                        email: $('#email').val(),
+                        phone: $('#phone').val(),
+                        country: $('#country').val(),
+                        officialName: $('#officialName').val(),
+                        comments: $('#comments').val()
+                    };
+                    
+                    saveContact(contact);
+                    resetForm();
+                    loadContacts();
+                    alert(contact.id ? 'Contacto actualizado' : 'Contacto guardado');
+                }
+            });
+            
+            // Manejar cancelación
+            $('#cancelBtn').click(resetForm);
+        });
+        
+        function validateForm() {
+            let isValid = true;
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            
+            // Validar nombre
+            if ($('#name').val().trim() === '') {
+                $('#name').addClass('is-invalid');
+                isValid = false;
+            } else {
+                $('#name').removeClass('is-invalid');
+            }
+            
+            // Validar email
+            if (!emailRegex.test($('#email').val())) {
+                $('#email').addClass('is-invalid');
+                isValid = false;
+            } else {
+                $('#email').removeClass('is-invalid');
+            }
+            
+            // Validar país
+            if ($('#country').val() === '') {
+                $('#country').addClass('is-invalid');
+                isValid = false;
+            } else {
+                $('#country').removeClass('is-invalid');
+            }
+            
+            return isValid;
+        }
+        
+        function saveContact(contact) {
+            let contacts = JSON.parse(localStorage.getItem('contacts')) || [];
+            const index = contacts.findIndex(c => c.id === contact.id);
+            
+            if (index >= 0) {
+                contacts[index] = contact; // Actualizar
+            } else {
+                contacts.push(contact); // Crear nuevo
+            }
+            
+            localStorage.setItem('contacts', JSON.stringify(contacts));
+        }
+        
+        function loadContacts() {
+            const contacts = JSON.parse(localStorage.getItem('contacts')) || [];
+            const contactsList = $('#contactsList');
+            
+            contactsList.empty();
+            
+            if (contacts.length === 0) {
+                contactsList.html('<div class="alert alert-info">No hay contactos registrados</div>');
+                return;
+            }
+            
+            contacts.forEach(contact => {
+                const contactCard = $(`
+                    <div class="contact-card" data-id="${contact.id}">
+                        <h4>${contact.name}</h4>
+                        <p><strong>Email:</strong> ${contact.email}</p>
+                        ${contact.phone ? `<p><strong>Teléfono:</strong> ${contact.phone}</p>` : ''}
+                        <p><strong>País:</strong> ${contact.country} (${contact.officialName})</p>
+                        ${contact.comments ? `<p><strong>Comentarios:</strong> ${contact.comments}</p>` : ''}
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-primary edit-btn">Editar</button>
+                            <button class="btn btn-sm btn-danger delete-btn">Eliminar</button>
+                        </div>
+                    </div>
+                `);
+                
+                contactsList.append(contactCard);
+            });
+            
+            // Asignar eventos a los botones
+            $('.edit-btn').click(function() {
+                const contactId = $(this).closest('.contact-card').data('id');
+                editContact(contactId);
+            });
+            
+            $('.delete-btn').click(function() {
+                const contactId = $(this).closest('.contact-card').data('id');
+                deleteContact(contactId);
+            });
+        }
+        
+        function editContact(contactId) {
+            const contacts = JSON.parse(localStorage.getItem('contacts')) || [];
+            const contact = contacts.find(c => c.id === contactId);
+            
+            if (contact) {
+                $('#contactId').val(contact.id);
+                $('#name').val(contact.name);
+                $('#email').val(contact.email);
+                $('#phone').val(contact.phone);
+                $('#country').val(contact.country);
+                $('#officialName').val(contact.officialName);
+                $('#comments').val(contact.comments);
+                
+                $('#submitBtn').text('Actualizar');
+                $('#cancelBtn').show();
+                
+                $('html, body').animate({
+                    scrollTop: $('#contactForm').offset().top
+                }, 500);
+            }
+        }
+        
+        function deleteContact(contactId) {
+            if (confirm('¿Está seguro de eliminar este contacto?')) {
+                let contacts = JSON.parse(localStorage.getItem('contacts')) || [];
+                contacts = contacts.filter(c => c.id !== contactId);
+                localStorage.setItem('contacts', JSON.stringify(contacts));
+                loadContacts();
+            }
+        }
+        
+        function resetForm() {
+            $('#contactForm')[0].reset();
+            $('#contactId').val('');
+            $('.is-invalid').removeClass('is-invalid');
+            $('#submitBtn').text('Guardar');
+            $('#cancelBtn').hide();
+        }
+    </script>
+</body>
+</html>
 </body>
 </html>
